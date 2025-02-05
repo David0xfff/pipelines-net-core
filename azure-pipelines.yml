@@ -1,19 +1,61 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- master
+  branches:
+    include:
+      - main
+      - feature/*
+
+pr:
+  branches:
+    include:
+      - main
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: 'ubuntu-latest'  # o 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '6.0.x'    # Ajusta según tu versión de .NET
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- task: UseDotNet@2
+  displayName: 'Instalar .NET SDK'
+  inputs:
+    packageType: 'sdk'
+    version: $(dotnetVersion)
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- checkout: self
+
+- task: DotNetCoreCLI@2
+  displayName: 'Restaurar paquetes'
+  inputs:
+    command: 'restore'
+    projects: '**/*.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Compilar proyecto'
+  inputs:
+    command: 'build'
+    arguments: '--configuration $(buildConfiguration) --no-restore'
+    projects: '**/*.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Ejecutar tests'
+  inputs:
+    command: 'test'
+    projects: '**/*[Tt]ests/*.csproj'
+    arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Publicar aplicación'
+  inputs:
+    command: 'publish'
+    projects: '**/*.csproj'
+    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+    publishWebProjects: false
+    zipAfterPublish: true
+
+- task: PublishPipelineArtifact@1
+  displayName: 'Subir artefacto'
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+    artifactName: 'drop'
